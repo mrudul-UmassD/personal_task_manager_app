@@ -162,6 +162,7 @@ const App = () => {
   const [editingTask, setEditingTask] = useState(null);
   const { 
     tasks, 
+    allTasks,
     isLoading, 
     error, 
     filter, 
@@ -169,6 +170,7 @@ const App = () => {
     createTask, 
     updateTask, 
     deleteTask,
+    reorderTask,
     addSubtask,
     updateSubtask,
     deleteSubtask
@@ -198,6 +200,11 @@ const App = () => {
     setShowTaskForm(false);
     setEditingTask(null);
   };
+  
+  const handleAddTaskClick = () => {
+    setEditingTask(null);
+    setShowTaskForm(true);
+  };
 
   return (
     <ThemeProvider theme={theme}>
@@ -210,7 +217,7 @@ const App = () => {
         <Header 
           theme={theme.name} 
           toggleTheme={toggleTheme} 
-          onAddTaskClick={() => setShowTaskForm(true)}
+          onAddTaskClick={handleAddTaskClick}
         />
         
         <MainContent>
@@ -225,6 +232,8 @@ const App = () => {
               onAddSubtask={addSubtask}
               onUpdateSubtask={updateSubtask}
               onDeleteSubtask={deleteSubtask}
+              onReorderTasks={reorderTask}
+              onAddTaskClick={handleAddTaskClick}
             />
           </TasksSection>
           
@@ -258,10 +267,11 @@ const App = () => {
                 currentFilter={filter} 
                 onFilterChange={setFilter}
                 taskCounts={{
-                  all: tasks.length,
-                  completed: tasks.filter(t => t.completed).length,
-                  pending: tasks.filter(t => !t.completed && t.progress === 0).length,
-                  partial: tasks.filter(t => !t.completed && t.progress > 0).length
+                  all: allTasks.length,
+                  completed: allTasks.filter(t => t.completed).length,
+                  pending: allTasks.filter(t => !t.completed && t.progress === 0).length,
+                  partial: allTasks.filter(t => !t.completed && t.progress > 0).length,
+                  'in-progress': allTasks.filter(t => t.status === 'in-progress').length
                 }}
               />
             </FilterCard>

@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { FiList, FiCheckCircle, FiClock, FiActivity } from 'react-icons/fi';
+import { FiList, FiCheckCircle, FiClock, FiActivity, FiLoader } from 'react-icons/fi';
 
 const FilterContainer = styled.div`
   display: flex;
@@ -75,8 +75,14 @@ const TaskFilter = ({ currentFilter, onFilterChange, taskCounts }) => {
       count: taskCounts.pending 
     },
     { 
-      id: 'partial', 
+      id: 'in-progress', 
       label: 'In Progress', 
+      icon: <FiLoader size={16} />, 
+      count: taskCounts['in-progress'] 
+    },
+    { 
+      id: 'partial', 
+      label: 'Partially Done', 
       icon: <FiActivity size={16} />, 
       count: taskCounts.partial 
     },

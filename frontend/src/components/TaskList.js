@@ -3,11 +3,12 @@ import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiEdit2, FiTrash2, FiMoreVertical, FiPlus, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import Task from './Task';
+import { DragDropContext, Droppable } from 'react-beautiful-dnd';
 
 const ListContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 `;
 
 const TasksHeader = styled.div`
@@ -79,6 +80,11 @@ const LoadingContainer = styled.div`
   color: ${props => props.theme.subtleText};
 `;
 
+const TaskDroppableArea = styled.div`
+  min-height: 100px;
+  padding: 0.5rem 0;
+`;
+
 const TaskList = ({ 
   tasks, 
   isLoading, 
@@ -87,8 +93,25 @@ const TaskList = ({
   onUpdateTask,
   onAddSubtask,
   onUpdateSubtask,
-  onDeleteSubtask
+  onDeleteSubtask,
+  onReorderTasks,
+  onAddTaskClick
 }) => {
+  const handleDragEnd = (result) => {
+    // Dropped outside the list
+    if (!result.destination) {
+      return;
+    }
+    
+    // Reorder tasks
+    const startIndex = result.source.index;
+    const endIndex = result.destination.index;
+    
+    if (startIndex !== endIndex) {
+      onReorderTasks(result.draggableId, endIndex);
+    }
+  };
+  
   if (isLoading) {
     return (
       <LoadingContainer>
@@ -112,7 +135,7 @@ const TaskList = ({
         <h3>No Tasks Found</h3>
         <p>You don't have any tasks yet. Add your first task to get started with managing your day.</p>
         <AddTaskButton
-          onClick={() => {}}
+          onClick={onAddTaskClick}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
@@ -124,26 +147,39 @@ const TaskList = ({
   }
   
   return (
-    <ListContainer>
-      <TasksHeader>
-        <TasksTitle>Your Tasks</TasksTitle>
-      </TasksHeader>
-      
-      <AnimatePresence>
-        {tasks.map(task => (
-          <Task
-            key={task.id}
-            task={task}
-            onEdit={() => onEditTask(task)}
-            onDelete={() => onDeleteTask(task.id)}
-            onUpdate={(updates) => onUpdateTask(task.id, updates)}
-            onAddSubtask={(title) => onAddSubtask(task.id, { title })}
-            onUpdateSubtask={(subtaskId, updates) => onUpdateSubtask(task.id, subtaskId, updates)}
-            onDeleteSubtask={(subtaskId) => onDeleteSubtask(task.id, subtaskId)}
-          />
-        ))}
-      </AnimatePresence>
-    </ListContainer>
+    <DragDropContext onDragEnd={handleDragEnd}>
+      <ListContainer>
+        <TasksHeader>
+          <TasksTitle>Your Tasks</TasksTitle>
+        </TasksHeader>
+        
+        <Droppable droppableId="tasks-list">
+          {(provided) => (
+            <TaskDroppableArea
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+            >
+              <AnimatePresence>
+                {tasks.map((task, index) => (
+                  <Task
+                    key={task.id}
+                    task={task}
+                    index={index}
+                    onEdit={() => onEditTask(task)}
+                    onDelete={() => onDeleteTask(task.id)}
+                    onUpdate={(updates) => onUpdateTask(task.id, updates)}
+                    onAddSubtask={(title) => onAddSubtask(task.id, { title })}
+                    onUpdateSubtask={(subtaskId, updates) => onUpdateSubtask(task.id, subtaskId, updates)}
+                    onDeleteSubtask={(subtaskId) => onDeleteSubtask(task.id, subtaskId)}
+                  />
+                ))}
+              </AnimatePresence>
+              {provided.placeholder}
+            </TaskDroppableArea>
+          )}
+        </Droppable>
+      </ListContainer>
+    </DragDropContext>
   );
 };
 

@@ -64,7 +64,7 @@ app.get('/api/tasks/:id', (req, res) => {
 
 // Create a new task
 app.post('/api/tasks', (req, res) => {
-  const { title, description, dueDate } = req.body;
+  const { title, description, dueDate, dueTime, subtasks } = req.body;
   
   if (!title) {
     return res.status(400).json({ message: 'Title is required' });
@@ -75,11 +75,30 @@ app.post('/api/tasks', (req, res) => {
     title,
     description: description || '',
     dueDate: dueDate || null,
+    dueTime: dueTime || null,
     completed: false,
+    status: 'pending', // 'pending', 'in-progress', 'completed'
     progress: 0,
     createdAt: new Date().toISOString(),
     subtasks: []
   };
+  
+  // If subtasks were provided during task creation
+  if (subtasks && Array.isArray(subtasks) && subtasks.length > 0) {
+    subtasks.forEach(subtask => {
+      if (subtask.title) {
+        newTask.subtasks.push({
+          id: uuidv4(),
+          title: subtask.title,
+          dueDate: subtask.dueDate || null,
+          dueTime: subtask.dueTime || null, 
+          completed: false,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        });
+      }
+    });
+  }
   
   const data = getTasks();
   data.tasks.push(newTask);
@@ -94,7 +113,7 @@ app.post('/api/tasks', (req, res) => {
 // Update a task
 app.put('/api/tasks/:id', (req, res) => {
   const { id } = req.params;
-  const { title, description, dueDate, completed, progress } = req.body;
+  const { title, description, dueDate, dueTime, completed, progress, status, position } = req.body;
   
   const data = getTasks();
   const taskIndex = data.tasks.findIndex(task => task.id === id);
@@ -108,18 +127,36 @@ app.put('/api/tasks/:id', (req, res) => {
     title: title || data.tasks[taskIndex].title,
     description: description !== undefined ? description : data.tasks[taskIndex].description,
     dueDate: dueDate !== undefined ? dueDate : data.tasks[taskIndex].dueDate,
+    dueTime: dueTime !== undefined ? dueTime : data.tasks[taskIndex].dueTime,
     completed: completed !== undefined ? completed : data.tasks[taskIndex].completed,
+    status: status || data.tasks[taskIndex].status,
     progress: progress !== undefined ? progress : data.tasks[taskIndex].progress
   };
+  
+  // Handle position change for drag and drop
+  if (position !== undefined && position !== taskIndex) {
+    // Remove the task from its current position
+    const taskToMove = data.tasks.splice(taskIndex, 1)[0];
+    // Insert it at the new position
+    data.tasks.splice(position, 0, taskToMove);
+  } else {
+    // Just update the task at its current position
+    data.tasks[taskIndex] = updatedTask;
+  }
   
   // Calculate progress based on subtasks if available
   if (updatedTask.subtasks && updatedTask.subtasks.length > 0) {
     const completedSubtasks = updatedTask.subtasks.filter(subtask => subtask.completed).length;
     updatedTask.progress = Math.round((completedSubtasks / updatedTask.subtasks.length) * 100);
-    updatedTask.completed = updatedTask.progress === 100;
+    
+    // Update status based on progress
+    if (updatedTask.progress === 100) {
+      updatedTask.status = 'completed';
+      updatedTask.completed = true;
+    } else if (updatedTask.progress > 0) {
+      updatedTask.status = 'in-progress';
+    }
   }
-  
-  data.tasks[taskIndex] = updatedTask;
   
   if (saveTasks(data)) {
     res.json(updatedTask);
@@ -151,7 +188,7 @@ app.delete('/api/tasks/:id', (req, res) => {
 // Add a subtask to a task
 app.post('/api/tasks/:id/subtasks', (req, res) => {
   const { id } = req.params;
-  const { title } = req.body;
+  const { title, dueDate, dueTime, status } = req.body;
   
   if (!title) {
     return res.status(400).json({ message: 'Subtask title is required' });
@@ -167,7 +204,10 @@ app.post('/api/tasks/:id/subtasks', (req, res) => {
   const subtask = {
     id: uuidv4(),
     title,
+    dueDate: dueDate || null,
+    dueTime: dueTime || null,
     completed: false,
+    status: status || 'pending',
     createdAt: new Date().toISOString()
   };
   
@@ -176,7 +216,14 @@ app.post('/api/tasks/:id/subtasks', (req, res) => {
   // Recalculate task progress
   const completedSubtasks = data.tasks[taskIndex].subtasks.filter(st => st.completed).length;
   data.tasks[taskIndex].progress = Math.round((completedSubtasks / data.tasks[taskIndex].subtasks.length) * 100);
-  data.tasks[taskIndex].completed = data.tasks[taskIndex].progress === 100;
+  
+  // Update task status based on subtask status
+  if (data.tasks[taskIndex].progress === 100) {
+    data.tasks[taskIndex].status = 'completed';
+    data.tasks[taskIndex].completed = true;
+  } else if (data.tasks[taskIndex].progress > 0) {
+    data.tasks[taskIndex].status = 'in-progress';
+  }
   
   if (saveTasks(data)) {
     res.status(201).json(subtask);
@@ -188,7 +235,7 @@ app.post('/api/tasks/:id/subtasks', (req, res) => {
 // Update a subtask
 app.put('/api/tasks/:taskId/subtasks/:subtaskId', (req, res) => {
   const { taskId, subtaskId } = req.params;
-  const { title, completed } = req.body;
+  const { title, completed, dueDate, dueTime, status } = req.body;
   
   const data = getTasks();
   const taskIndex = data.tasks.findIndex(task => task.id === taskId);
@@ -206,13 +253,31 @@ app.put('/api/tasks/:taskId/subtasks/:subtaskId', (req, res) => {
   data.tasks[taskIndex].subtasks[subtaskIndex] = {
     ...data.tasks[taskIndex].subtasks[subtaskIndex],
     title: title || data.tasks[taskIndex].subtasks[subtaskIndex].title,
-    completed: completed !== undefined ? completed : data.tasks[taskIndex].subtasks[subtaskIndex].completed
+    dueDate: dueDate !== undefined ? dueDate : data.tasks[taskIndex].subtasks[subtaskIndex].dueDate,
+    dueTime: dueTime !== undefined ? dueTime : data.tasks[taskIndex].subtasks[subtaskIndex].dueTime,
+    completed: completed !== undefined ? completed : data.tasks[taskIndex].subtasks[subtaskIndex].completed,
+    status: status || data.tasks[taskIndex].subtasks[subtaskIndex].status
   };
+  
+  // If marked as completed, update status accordingly
+  if (data.tasks[taskIndex].subtasks[subtaskIndex].completed) {
+    data.tasks[taskIndex].subtasks[subtaskIndex].status = 'completed';
+  }
   
   // Recalculate task progress
   const completedSubtasks = data.tasks[taskIndex].subtasks.filter(subtask => subtask.completed).length;
   data.tasks[taskIndex].progress = Math.round((completedSubtasks / data.tasks[taskIndex].subtasks.length) * 100);
-  data.tasks[taskIndex].completed = data.tasks[taskIndex].progress === 100;
+  
+  // Update task status based on subtask status
+  if (data.tasks[taskIndex].progress === 100) {
+    data.tasks[taskIndex].status = 'completed';
+    data.tasks[taskIndex].completed = true;
+  } else if (data.tasks[taskIndex].progress > 0) {
+    data.tasks[taskIndex].status = 'in-progress';
+  } else {
+    data.tasks[taskIndex].status = 'pending';
+    data.tasks[taskIndex].completed = false;
+  }
   
   if (saveTasks(data)) {
     res.json(data.tasks[taskIndex].subtasks[subtaskIndex]);

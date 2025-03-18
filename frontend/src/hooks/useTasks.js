@@ -31,6 +31,8 @@ const useTasks = () => {
         return tasks.filter(task => !task.completed && task.progress === 0);
       case 'partial':
         return tasks.filter(task => !task.completed && task.progress > 0);
+      case 'in-progress':
+        return tasks.filter(task => task.status === 'in-progress');
       default:
         return tasks;
     }
@@ -75,6 +77,31 @@ const useTasks = () => {
       throw err;
     }
   }, []);
+
+  // Reorder tasks (for drag and drop)
+  const reorderTask = useCallback(async (id, newPosition) => {
+    try {
+      // First update the UI optimistically
+      setTasks(prevTasks => {
+        const taskIndex = prevTasks.findIndex(task => task.id === id);
+        if (taskIndex === -1) return prevTasks;
+        
+        const newTasks = [...prevTasks];
+        const taskToMove = newTasks.splice(taskIndex, 1)[0];
+        newTasks.splice(newPosition, 0, taskToMove);
+        return newTasks;
+      });
+      
+      // Then send the update to the server
+      await TaskApi.updateTask(id, { position: newPosition });
+    } catch (err) {
+      setError('Failed to reorder tasks. Please try again.');
+      console.error(err);
+      // Revert the optimistic update
+      fetchTasks();
+      throw err;
+    }
+  }, [fetchTasks]);
 
   // Add a subtask to a task
   const addSubtask = useCallback(async (taskId, subtask) => {
@@ -179,6 +206,7 @@ const useTasks = () => {
 
   return {
     tasks: filteredTasks(),
+    allTasks: tasks,
     isLoading,
     error,
     filter,
@@ -186,6 +214,7 @@ const useTasks = () => {
     createTask,
     updateTask,
     deleteTask,
+    reorderTask,
     addSubtask,
     updateSubtask,
     deleteSubtask,
